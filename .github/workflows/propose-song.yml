@@ -1,0 +1,49 @@
+name: Proponi brano
+
+# Attivato dall'app CantoriApp quando un corista propone di aggiungere un
+# brano personale alla libreria condivisa. L'app non scrive mai
+# direttamente in questo repo: le arriva solo un token che può avviare
+# questa automazione (permesso "Actions: write"), niente di più — è
+# questo workflow, con il permesso di scrittura sulle Issue che GitHub
+# gli fornisce automaticamente, ad aprire la proposta da approvare.
+on:
+  workflow_dispatch:
+    inputs:
+      fileName:
+        description: "Nome del file proposto"
+        required: true
+        type: string
+      content:
+        description: "Contenuto ChordPro del brano"
+        required: true
+        type: string
+
+permissions:
+  issues: write
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apri una Issue con il brano proposto
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { fileName, content } = context.payload.inputs;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Nuovo brano proposto: ${fileName}`,
+              body: [
+                "Brano proposto dall'app per la libreria condivisa del coro.",
+                "",
+                `Nome file: \`${fileName}\``,
+                "",
+                "Contenuto:",
+                "",
+                "```",
+                content,
+                "```",
+                "",
+              ].join("\n"),
+            });
