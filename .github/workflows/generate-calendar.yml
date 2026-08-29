@@ -1,0 +1,32 @@
+name: Genera calendario.ics
+
+# Rigenera calendario.ics (calendario liturgico calcolato per i prossimi 5
+# anni + appuntamenti del coro) ogni volta che appuntamenti.json cambia,
+# una volta l'anno per estendere in avanti il calendario liturgico, e a
+# richiesta manuale.
+on:
+  push:
+    paths:
+      - appuntamenti.json
+      - scripts/generate-ics.js
+  schedule:
+    - cron: "0 3 1 1 *" # 1° gennaio alle 03:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Genera calendario.ics
+        run: node scripts/generate-ics.js
+      - name: Commit se cambiato
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add calendario.ics
+          git diff --cached --quiet || git commit -m "Aggiorna calendario.ics"
+          git push
