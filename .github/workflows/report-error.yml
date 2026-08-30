@@ -1,0 +1,54 @@
+name: Segnala errore
+
+# Attivato dall'app CantoriApp quando si verifica un errore, per farlo
+# arrivare a chi gestisce il coro senza che l'utente debba segnalarlo a
+# voce. Stesso principio di "Proponi brano": l'app riceve solo un token
+# che può avviare questa automazione (permesso "Actions: write"), mai
+# scrivere direttamente — è questo workflow, con il permesso sulle Issue
+# che GitHub gli fornisce automaticamente, ad aprire la segnalazione.
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: "Messaggio di errore"
+        required: true
+        type: string
+      context:
+        description: "Dove è successo (schermata/azione)"
+        required: true
+        type: string
+      platform:
+        description: "Piattaforma (iOS, Android, macOS, ...)"
+        required: false
+        type: string
+
+permissions:
+  issues: write
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apri una Issue con l'errore segnalato
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { message, context: errorContext, platform } = context.payload.inputs;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Errore nell'app: ${errorContext}`,
+              body: [
+                "Errore segnalato automaticamente dall'app.",
+                "",
+                `Dove: ${errorContext}`,
+                platform ? `Piattaforma: ${platform}` : null,
+                "",
+                "Messaggio:",
+                "",
+                "```",
+                message,
+                "```",
+                "",
+              ].filter(Boolean).join("\n"),
+            });
