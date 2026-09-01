@@ -1,0 +1,59 @@
+name: Proponi appuntamento
+
+# Attivato dall'app CantoriApp quando qualcuno propone un nuovo
+# appuntamento (prova, orario messa). Stesso principio di "Proponi
+# brano": l'app riceve solo un token che può avviare questa automazione
+# (permesso "Actions: write"), mai scrivere direttamente in
+# appuntamenti.json — è questo workflow, con il permesso sulle Issue che
+# GitHub gli fornisce automaticamente, ad aprire la proposta da
+# rivedere e aggiungere a mano al file da chi gestisce la libreria.
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: "Titolo dell'appuntamento"
+        required: true
+        type: string
+      date:
+        description: "Data (YYYY-MM-DD)"
+        required: true
+        type: string
+      time:
+        description: "Orario (HH:mm), opzionale"
+        required: false
+        type: string
+      location:
+        description: "Luogo, opzionale"
+        required: false
+        type: string
+
+permissions:
+  issues: write
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apri una Issue con l'appuntamento proposto
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { title, date, time, location } = context.payload.inputs;
+            const entry = { title, date };
+            if (time) entry.time = time;
+            if (location) entry.location = location;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Nuovo appuntamento proposto: ${title} (${date})`,
+              body: [
+                "Appuntamento proposto dall'app per il calendario condiviso del coro.",
+                "",
+                "Da aggiungere all'array in `appuntamenti.json`:",
+                "",
+                "```json",
+                JSON.stringify(entry, null, 2),
+                "```",
+                "",
+              ].join("\n"),
+            });
