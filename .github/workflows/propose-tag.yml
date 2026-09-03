@@ -1,0 +1,56 @@
+name: Proponi tag
+
+# Attivato dall'app CantoriApp quando un corista propone di aggiungere un
+# tag (momento della messa, tempo liturgico o sacramento) a un brano già
+# presente nella libreria condivisa. Stesso principio di "Proponi brano":
+# l'app riceve solo un token che può avviare questa automazione (permesso
+# "Actions: write"), mai scrivere direttamente nei file — è questo
+# workflow, con il permesso di scrittura sulle Issue che GitHub gli
+# fornisce automaticamente, ad aprire la proposta da rivedere e applicare
+# a mano al file da chi gestisce la libreria.
+on:
+  workflow_dispatch:
+    inputs:
+      fileName:
+        description: "Nome del file del brano"
+        required: true
+        type: string
+      metaName:
+        description: "Nome del tag (momento, tempo_liturgico o sacramento)"
+        required: true
+        type: string
+      metaValue:
+        description: "Valore proposto per il tag"
+        required: true
+        type: string
+
+permissions:
+  issues: write
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apri una Issue con il tag proposto
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { fileName, metaName, metaValue } = context.payload.inputs;
+            const line = `{meta: ${metaName} ${metaValue}}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Tag proposto per ${fileName}: ${metaName} = ${metaValue}`,
+              body: [
+                "Tag proposto dall'app per un brano della libreria condivisa del coro.",
+                "",
+                `Brano: \`${fileName}\``,
+                "",
+                "Riga da aggiungere in cima al file:",
+                "",
+                "```",
+                line,
+                "```",
+                "",
+              ].join("\n"),
+            });
