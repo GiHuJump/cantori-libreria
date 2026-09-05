@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installa CantoriApp (iOS)</title>
+<style>
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    max-width: 32rem;
+    margin: 3rem auto;
+    padding: 0 1.5rem;
+    color: #1c1c1e;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.4rem; }
+  a.install {
+    display: inline-block;
+    margin: 1.5rem 0;
+    padding: 0.9rem 1.6rem;
+    background: #2e7d32;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 0.6rem;
+    font-weight: 600;
+  }
+  .nota {
+    background: #fff8e1;
+    border: 1px solid #f0d98c;
+    border-radius: 0.5rem;
+    padding: 0.8rem 1rem;
+    font-size: 0.92rem;
+  }
+</style>
+</head>
+<body>
+  <h1>CantoriApp — installazione di prova (iOS)</h1>
+  <p>
+    Apri questa pagina da <strong>Safari sull'iPhone/iPad</strong> (non
+    funziona da altri browser né da computer) e tocca il pulsante qui
+    sotto per installare l'ultima build di test.
+  </p>
+  <a class="install"
+     href="itms-services://?action=download-manifest&amp;url=https://GiHuJump.github.io/cantori-libreria/ios-distribution/manifest.plist">
+    Installa CantoriApp
+  </a>
+  <p class="nota">
+    Il tuo dispositivo deve essere già registrato per questa build (v.
+    procedura in <code>docs/distribuzione_ios_adhoc.md</code> nel repo
+    CantoriApp) — altrimenti l'installazione fallisce anche toccando il
+    pulsante. Al primo avvio, serve inoltre andare in
+    <strong>Impostazioni → Generali → VPN e gestione dispositivo</strong>
+    e confermare la fiducia nello sviluppatore.
+  </p>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Manifest per l'installazione "over-the-air" (OTA) di CantoriApp su iOS,
+  in ad-hoc — v. docs/distribuzione_ios_adhoc.md nel repo CantoriApp per
+  la procedura completa (richiede un abbonamento Apple Developer attivo).
+
+  Da rigenerare/aggiornare ad ogni nuova build ad-hoc:
+  - "url" sotto "software-package" deve puntare all'.ipa della release
+    GitHub appena caricata (v. sotto per come crearla).
+  - "bundle-version" deve combaciare con la versione in pubspec.yaml
+    (la parte prima del "+", es. "0.2.0").
+-->
+<plist version="1.0">
+<dict>
+  <key>items</key>
+  <array>
+    <dict>
+      <key>assets</key>
+      <array>
+        <dict>
+          <key>kind</key>
+          <string>software-package</string>
+          <key>url</key>
+          <string>https://github.com/GiHuJump/cantori-libreria/releases/download/ios-adhoc-latest/CantoriApp.ipa</string>
+        </dict>
+        <dict>
+          <key>kind</key>
+          <string>display-image</string>
+          <key>url</key>
+          <string>https://GiHuJump.github.io/cantori-libreria/ios-distribution/icon-57.png</string>
+        </dict>
+        <dict>
+          <key>kind</key>
+          <string>full-size-image</string>
+          <key>url</key>
+          <string>https://GiHuJump.github.io/cantori-libreria/ios-distribution/icon-512.png</string>
+        </dict>
+      </array>
+      <key>metadata</key>
+      <dict>
+        <key>bundle-identifier</key>
+        <string>com.JPSoft.cantoriapp</string>
+        <key>bundle-version</key>
+        <string>0.2.0</string>
+        <key>kind</key>
+        <string>software</string>
+        <key>title</key>
+        <string>CantoriApp</string>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>
