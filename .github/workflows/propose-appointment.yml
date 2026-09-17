@@ -1,59 +1,77 @@
 name: Proponi appuntamento
 
-# Attivato dall'app CantoriApp quando qualcuno propone un nuovo
-# appuntamento (prova, orario messa). Stesso principio di "Proponi
-# brano": l'app riceve solo un token che può avviare questa automazione
-# (permesso "Actions: write"), mai scrivere direttamente in
-# appuntamenti.json — è questo workflow, con il permesso sulle Issue che
-# GitHub gli fornisce automaticamente, ad aprire la proposta da
-# rivedere e aggiungere a mano al file da chi gestisce la libreria.
+# Avviata dall'app (Calendario -> proponi appuntamento): aggiunge una voce
+# a appuntamenti.json come proposta di Pull Request, invece di scriverla
+# subito su main.
 on:
   workflow_dispatch:
     inputs:
       title:
-        description: "Titolo dell'appuntamento"
+        description: "Titolo dell'appuntamento (es. Prova coro)"
         required: true
-        type: string
       date:
-        description: "Data (YYYY-MM-DD)"
+        description: "Data in formato AAAA-MM-GG"
         required: true
-        type: string
       time:
-        description: "Orario (HH:mm), opzionale"
+        description: "Orario in formato HH:mm (facoltativo)"
         required: false
-        type: string
       location:
-        description: "Luogo, opzionale"
+        description: "Luogo (facoltativo)"
         required: false
-        type: string
 
 permissions:
-  issues: write
+  contents: write
+  pull-requests: write
 
 jobs:
-  create-issue:
+  propose:
     runs-on: ubuntu-latest
     steps:
-      - name: Apri una Issue con l'appuntamento proposto
-        uses: actions/github-script@v7
+      - uses: actions/checkout@v4
+
+      # ubuntu-latest include jq preinstallato: usato qui per costruire
+      # correttamente il nuovo oggetto JSON (con "time"/"location" solo se
+      # indicati) e aggiungerlo all'array esistente, invece di manipolare
+      # il file come testo semplice — così appuntamenti.json resta sempre
+      # JSON valido anche se un valore contenesse virgolette o altri
+      # caratteri speciali.
+      - name: Aggiunge la voce a appuntamenti.json
+        env:
+          TITLE: ${{ inputs.title }}
+          DATE: ${{ inputs.date }}
+          TIME: ${{ inputs.time }}
+          LOCATION: ${{ inputs.location }}
+        run: |
+          if [ ! -f appuntamenti.json ]; then
+            echo "[]" > appuntamenti.json
+          fi
+          jq --arg title "$TITLE" --arg date "$DATE" --arg time "$TIME" --arg location "$LOCATION" \
+            '. + [
+              {title: $title, date: $date}
+              + (if $time != "" then {time: $time} else {} end)
+              + (if $location != "" then {location: $location} else {} end)
+            ]' \
+            appuntamenti.json > appuntamenti.tmp
+          mv appuntamenti.tmp appuntamenti.json
+
+      - name: Calcola un nome di branch valido
+        id: branch
+        env:
+          TITLE: ${{ inputs.title }}
+        run: |
+          SLUG=$(echo "$TITLE" | tr -c 'a-zA-Z0-9' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')
+          echo "slug=appuntamento-$SLUG-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Apre la Pull Request
+        uses: peter-evans/create-pull-request@v6
         with:
-          script: |
-            const { title, date, time, location } = context.payload.inputs;
-            const entry = { title, date };
-            if (time) entry.time = time;
-            if (location) entry.location = location;
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Nuovo appuntamento proposto: ${title} (${date})`,
-              body: [
-                "Appuntamento proposto dall'app per il calendario condiviso del coro.",
-                "",
-                "Da aggiungere all'array in `appuntamenti.json`:",
-                "",
-                "```json",
-                JSON.stringify(entry, null, 2),
-                "```",
-                "",
-              ].join("\n"),
-            });
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Proposta appuntamento: ${{ inputs.title }} (${{ inputs.date }})"
+          title: "Proposta appuntamento: ${{ inputs.title }} — ${{ inputs.date }}"
+          body: |
+            Proposta ricevuta dall'app "Libretto Cantori Fornaciari".
+
+            Controlla il diff prima di fare merge — questa PR non viene
+            unita automaticamente.
+          branch: ${{ steps.branch.outputs.slug }}
+          add-paths: appuntamenti.json
