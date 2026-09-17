@@ -42,6 +42,20 @@ jobs:
       # "metaName"/"metaValue" arrivano da un utente dell'app: qui si
       # scartano eventuali "a capo" che, incollati così com'è nella riga
       # {meta: ...}, spezzerebbero quella riga in più righe non valide.
+      #
+      # La riga va inserita SUBITO DOPO l'intestazione del file (le righe
+      # {...} e vuote in cima, es. {title:}/{artist:}/altri {meta:}), non
+      # in fondo a tutto il canto: un semplice ">> file" (append) in fondo
+      # aveva due problemi — se il file non terminava già con un "a capo"
+      # la riga del tag finiva incollata alla fine dell'ultima riga di
+      # testo invece che su una riga propria (l'app poi non la
+      # riconosceva più come direttiva valida), e comunque un tag in
+      # fondo a tutto il canto, dopo ritornelli e strofe, è nel posto
+      # sbagliato per chiunque apra il file. awk riscrive qui l'intero
+      # file riga per riga (quindi ogni riga, compresa quella nuova,
+      # finisce sempre con un "a capo" pulito) inserendo la riga del tag
+      # subito prima della prima riga che non è né vuota né una direttiva
+      # — cioè subito prima che inizi il testo vero e proprio del canto.
       - name: Aggiunge la riga del tag (se non già presente)
         env:
           FILE_NAME: ${{ inputs.fileName }}
@@ -55,10 +69,41 @@ jobs:
             echo "Il tag è già presente, niente da proporre."
             echo "already_present=true" >> "$GITHUB_ENV"
           else
-            echo "$LINE" >> "$FILE_NAME"
+            awk -v line="$LINE" '
+              !inserted && $0 !~ /^\{.*\}[ \t]*$/ && $0 !~ /^[ \t]*$/ {
+                print line
+                inserted = 1
+              }
+              { print }
+              END { if (!inserted) print line }
+            ' "$FILE_NAME" > "$FILE_NAME.tmp"
+            mv "$FILE_NAME.tmp" "$FILE_NAME"
             echo "already_present=false" >> "$GITHUB_ENV"
           fi
 
+      - name: Calcola un nome di branch valido
+        if: env.already_present == 'false'
+        id: branch
+        env:
+          FILE_NAME: ${{ inputs.fileName }}
+        run: |
+          SLUG=$(echo "$FILE_NAME" | tr -c 'a-zA-Z0-9' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')
+          echo "slug=tag-$SLUG-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Apre la Pull Request
+        if: env.already_present == 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Proposta tag ${{ inputs.metaName }} per ${{ inputs.fileName }}"
+          title: "Proposta tag: ${{ inputs.fileName }} — ${{ inputs.metaName }} ${{ inputs.metaValue }}"
+          body: |
+            Proposta ricevuta dall'app "Libretto Cantori Fornaciari".
+
+            Controlla il diff prima di fare merge — questa PR non viene
+            unita automaticamente.
+          branch: ${{ steps.branch.outputs.slug }}
+          add-paths: ${{ inputs.fileName }}
       - name: Calcola un nome di branch valido
         if: env.already_present == 'false'
         id: branch
