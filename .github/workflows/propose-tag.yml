@@ -1,56 +1,84 @@
-name: Proponi tag
+name: Proponi tag per un canto
 
-# Attivato dall'app CantoriApp quando un corista propone di aggiungere un
-# tag (momento della messa, tempo liturgico o sacramento) a un brano già
-# presente nella libreria condivisa. Stesso principio di "Proponi brano":
-# l'app riceve solo un token che può avviare questa automazione (permesso
-# "Actions: write"), mai scrivere direttamente nei file — è questo
-# workflow, con il permesso di scrittura sulle Issue che GitHub gli
-# fornisce automaticamente, ad aprire la proposta da rivedere e applicare
-# a mano al file da chi gestisce la libreria.
+# Avviata dall'app (dettaglio di un canto -> proponi tag momento/tempo
+# liturgico/sacramento): aggiunge una riga "{meta: ...}" a un canto già
+# esistente nella libreria, proponendola come Pull Request invece di
+# scriverla subito su main.
 on:
   workflow_dispatch:
     inputs:
       fileName:
-        description: "Nome del file del brano"
+        description: "Nome del file del canto già in libreria (es. Gloria.cho)"
         required: true
-        type: string
       metaName:
-        description: "Nome del tag (momento, tempo_liturgico o sacramento)"
+        description: "Nome del tag (es. momento, tempo_liturgico, sacramento)"
         required: true
-        type: string
       metaValue:
-        description: "Valore proposto per il tag"
+        description: "Valore proposto (es. Ingresso)"
         required: true
-        type: string
 
 permissions:
-  issues: write
+  contents: write
+  pull-requests: write
 
 jobs:
-  create-issue:
+  propose:
     runs-on: ubuntu-latest
     steps:
-      - name: Apri una Issue con il tag proposto
-        uses: actions/github-script@v7
+      - uses: actions/checkout@v4
+
+      - name: Verifica che il nome file sia sicuro e che il canto esista
+        run: |
+          FILE_NAME="${{ inputs.fileName }}"
+          if [[ "$FILE_NAME" == *"/"* || "$FILE_NAME" == *".."* ]]; then
+            echo "Nome file non valido: $FILE_NAME"
+            exit 1
+          fi
+          if [ ! -f "$FILE_NAME" ]; then
+            echo "Il canto '$FILE_NAME' non esiste in libreria: nessun tag da aggiungere."
+            exit 1
+          fi
+
+      # "metaName"/"metaValue" arrivano da un utente dell'app: qui si
+      # scartano eventuali "a capo" che, incollati così com'è nella riga
+      # {meta: ...}, spezzerebbero quella riga in più righe non valide.
+      - name: Aggiunge la riga del tag (se non già presente)
+        env:
+          FILE_NAME: ${{ inputs.fileName }}
+          META_NAME: ${{ inputs.metaName }}
+          META_VALUE: ${{ inputs.metaValue }}
+        run: |
+          SAFE_NAME=$(echo "$META_NAME" | tr -d '\n\r')
+          SAFE_VALUE=$(echo "$META_VALUE" | tr -d '\n\r')
+          LINE="{meta: $SAFE_NAME $SAFE_VALUE}"
+          if grep -qF "$LINE" "$FILE_NAME"; then
+            echo "Il tag è già presente, niente da proporre."
+            echo "already_present=true" >> "$GITHUB_ENV"
+          else
+            echo "$LINE" >> "$FILE_NAME"
+            echo "already_present=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Calcola un nome di branch valido
+        if: env.already_present == 'false'
+        id: branch
+        env:
+          FILE_NAME: ${{ inputs.fileName }}
+        run: |
+          SLUG=$(echo "$FILE_NAME" | tr -c 'a-zA-Z0-9' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')
+          echo "slug=tag-$SLUG-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Apre la Pull Request
+        if: env.already_present == 'false'
+        uses: peter-evans/create-pull-request@v6
         with:
-          script: |
-            const { fileName, metaName, metaValue } = context.payload.inputs;
-            const line = `{meta: ${metaName} ${metaValue}}`;
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Tag proposto per ${fileName}: ${metaName} = ${metaValue}`,
-              body: [
-                "Tag proposto dall'app per un brano della libreria condivisa del coro.",
-                "",
-                `Brano: \`${fileName}\``,
-                "",
-                "Riga da aggiungere in cima al file:",
-                "",
-                "```",
-                line,
-                "```",
-                "",
-              ].join("\n"),
-            });
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Proposta tag ${{ inputs.metaName }} per ${{ inputs.fileName }}"
+          title: "Proposta tag: ${{ inputs.fileName }} — ${{ inputs.metaName }} ${{ inputs.metaValue }}"
+          body: |
+            Proposta ricevuta dall'app "Libretto Cantori Fornaciari".
+
+            Controlla il diff prima di fare merge — questa PR non viene
+            unita automaticamente.
+          branch: ${{ steps.branch.outputs.slug }}
+          add-paths: ${{ inputs.fileName }}
