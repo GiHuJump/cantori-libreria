@@ -104,26 +104,3 @@ jobs:
             unita automaticamente.
           branch: ${{ steps.branch.outputs.slug }}
           add-paths: ${{ inputs.fileName }}
-      - name: Calcola un nome di branch valido
-        if: env.already_present == 'false'
-        id: branch
-        env:
-          FILE_NAME: ${{ inputs.fileName }}
-        run: |
-          SLUG=$(echo "$FILE_NAME" | tr -c 'a-zA-Z0-9' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')
-          echo "slug=tag-$SLUG-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
-
-      - name: Apre la Pull Request
-        if: env.already_present == 'false'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Proposta tag ${{ inputs.metaName }} per ${{ inputs.fileName }}"
-          title: "Proposta tag: ${{ inputs.fileName }} — ${{ inputs.metaName }} ${{ inputs.metaValue }}"
-          body: |
-            Proposta ricevuta dall'app "Libretto Cantori Fornaciari".
-
-            Controlla il diff prima di fare merge — questa PR non viene
-            unita automaticamente.
-          branch: ${{ steps.branch.outputs.slug }}
-          add-paths: ${{ inputs.fileName }}
