@@ -1,49 +1,77 @@
-name: Proponi brano
+name: Proponi canto o playlist
 
-# Attivato dall'app CantoriApp quando un corista propone di aggiungere un
-# brano personale alla libreria condivisa. L'app non scrive mai
-# direttamente in questo repo: le arriva solo un token che può avviare
-# questa automazione (permesso "Actions: write"), niente di più — è
-# questo workflow, con il permesso di scrittura sulle Issue che GitHub
-# gli fornisce automaticamente, ad aprire la proposta da approvare.
+# Avviata dall'app ("I miei brani" -> proponi per la libreria condivisa,
+# oppure dentro una playlist -> "Proponi"): riceve solo il nome del file
+# proposto e il suo contenuto, mai un permesso di scrittura diretto — è
+# questo workflow, una volta avviato, ad avere il permesso di scrivere
+# (v. "permissions" sotto), non il token incorporato nell'app.
 on:
   workflow_dispatch:
     inputs:
       fileName:
-        description: "Nome del file proposto"
+        description: "Nome del file proposto (es. Gloria.cho, o Corpus Domini.lst per una playlist)"
         required: true
-        type: string
       content:
-        description: "Contenuto ChordPro del brano"
+        description: "Contenuto completo del file (ChordPro per un canto, elenco brani per una playlist)"
         required: true
-        type: string
 
 permissions:
-  issues: write
+  contents: write
+  pull-requests: write
 
 jobs:
-  create-issue:
+  propose:
     runs-on: ubuntu-latest
     steps:
-      - name: Apri una Issue con il brano proposto
-        uses: actions/github-script@v7
+      - uses: actions/checkout@v4
+
+      # Rifiuta nomi file che uscirebbero dalla cartella principale del
+      # repo (es. "../.github/workflows/qualcosa.yml"): il nome arriva da
+      # un utente dell'app, quindi va trattato come dato non fidato anche
+      # se l'app stessa non lo farebbe mai apposta.
+      - name: Verifica che il nome file sia sicuro
+        run: |
+          FILE_NAME="${{ inputs.fileName }}"
+          if [[ "$FILE_NAME" == *"/"* || "$FILE_NAME" == *".."* ]]; then
+            echo "Nome file non valido: $FILE_NAME"
+            exit 1
+          fi
+
+      # Scrive il contenuto proposto nel file: se il nome corrisponde a un
+      # canto o una playlist già esistente lo sovrascrive (proposta di
+      # modifica), altrimenti crea un file nuovo (proposta di aggiunta) —
+      # in entrambi i casi il file finito compare come proposta di
+      # modifica nella Pull Request, mai scritto direttamente su main.
+      - name: Scrive il file proposto
+        env:
+          FILE_NAME: ${{ inputs.fileName }}
+          CONTENT: ${{ inputs.content }}
+        run: printf '%s' "$CONTENT" > "$FILE_NAME"
+
+      # Il nome del branch non può contenere spazi/parentesi come invece è
+      # normale in un nome file (es. "Gloria(Giombini).cho"): qui si
+      # ricava un nome di branch sempre valido, sostituendo ogni carattere
+      # che non sia lettera/cifra con un trattino.
+      - name: Calcola un nome di branch valido
+        id: branch
+        env:
+          FILE_NAME: ${{ inputs.fileName }}
+        run: |
+          SLUG=$(echo "$FILE_NAME" | tr -c 'a-zA-Z0-9' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')
+          echo "slug=proposta-$SLUG-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Apre la Pull Request
+        uses: peter-evans/create-pull-request@v6
         with:
-          script: |
-            const { fileName, content } = context.payload.inputs;
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Nuovo brano proposto: ${fileName}`,
-              body: [
-                "Brano proposto dall'app per la libreria condivisa del coro.",
-                "",
-                `Nome file: \`${fileName}\``,
-                "",
-                "Contenuto:",
-                "",
-                "```",
-                content,
-                "```",
-                "",
-              ].join("\n"),
-            });
+          # GITHUB_TOKEN generato automaticamente da GitHub per questa sola
+          # esecuzione del workflow, non il token incorporato nell'app.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Proposta: ${{ inputs.fileName }}"
+          title: "Proposta: ${{ inputs.fileName }}"
+          body: |
+            Proposta ricevuta dall'app "Libretto Cantori Fornaciari".
+
+            Controlla il contenuto nel diff qui sotto prima di fare merge —
+            questa PR non viene unita automaticamente.
+          branch: ${{ steps.branch.outputs.slug }}
+          add-paths: ${{ inputs.fileName }}
